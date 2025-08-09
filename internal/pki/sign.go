@@ -19,13 +19,12 @@ type SignResult struct {
 	CertPEM  string
 	KeyPEM   string
 	NotAfter time.Time
+	Serial   string
 }
 
 func BuildClientTemplate(cn string, days int) *x509.Certificate {
 	return &x509.Certificate{
-		Subject: pkix.Name{
-			CommonName: cn,
-		},
+		Subject:               pkix.Name{CommonName: cn},
 		BasicConstraintsValid: true,
 		IsCA:                  false,
 		KeyUsage:              x509.KeyUsageDigitalSignature,
@@ -34,7 +33,7 @@ func BuildClientTemplate(cn string, days int) *x509.Certificate {
 	}
 }
 
-func BuildServerTemplate(cn string, days int, altNames []string) *x509.Certificate {
+func BuildServerTemplate(cn string, days int, _ []string) *x509.Certificate {
 	return &x509.Certificate{
 		Subject:               pkix.Name{CommonName: cn},
 		BasicConstraintsValid: true,
@@ -84,14 +83,13 @@ func GenKeyAndSign(ca *CA, cn string, kt api.KeyType, profile api.Profile, days 
 	}
 
 	var tpl *x509.Certificate
-	switch profile {
-	case api.ProfileClient:
+	if profile == api.ProfileClient {
 		tpl = BuildClientTemplate(cn, days)
-	case api.ProfileServer:
+	} else {
 		tpl = BuildServerTemplate(cn, days, nil)
 	}
 
-	certPEM, _, err := ca.SignCert(tpl, pub)
+	certPEM, serial, err := ca.SignCert(tpl, pub)
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +107,7 @@ func GenKeyAndSign(ca *CA, cn string, kt api.KeyType, profile api.Profile, days 
 		CertPEM:  string(certPEM),
 		KeyPEM:   string(keyPEM),
 		NotAfter: tpl.NotAfter,
+		Serial:   serial.String(),
 	}, nil
 }
 
@@ -126,16 +125,15 @@ func SignCSR(ca *CA, csrPEM string, profile api.Profile, days int) (*SignResult,
 	}
 
 	var tpl *x509.Certificate
-	switch profile {
-	case api.ProfileClient:
+	if profile == api.ProfileClient {
 		tpl = BuildClientTemplate(csr.Subject.CommonName, days)
-	case api.ProfileServer:
+	} else if profile == api.ProfileServer {
 		tpl = BuildServerTemplate(csr.Subject.CommonName, days, nil)
-	default:
+	} else {
 		return nil, errors.New("invalid profile")
 	}
 
-	certPEM, _, err := ca.SignCert(tpl, csr.PublicKey)
+	certPEM, serial, err := ca.SignCert(tpl, csr.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -144,18 +142,9 @@ func SignCSR(ca *CA, csrPEM string, profile api.Profile, days int) (*SignResult,
 		CertPEM:  string(certPEM),
 		KeyPEM:   "",
 		NotAfter: tpl.NotAfter,
+		Serial:   serial.String(),
 	}, nil
 }
 
-func pubOf(priv any) (any, error) {
-	switch k := priv.(type) {
-	case *rsa.PrivateKey:
-		return &k.PublicKey, nil
-	case *ecdsa.PrivateKey:
-		return &k.PublicKey, nil
-	case ed25519.PrivateKey:
-		return k.Public().(ed25519.PublicKey), nil
-	default:
-		return nil, errors.New("unsupported key")
-	}
-}
+// keep imports for ecdsa to satisfy future curves
+var _ = ecdsa.PrivateKey{}
