@@ -176,3 +176,13 @@ ReadWritePaths=/srv/pki/intermediate /run/vpn-certd
     - `client-inline.ovpn` (optional)
 6. **Admin** sends ZIP and passphrase to the end user via separate channels.
 
+### Test
+to Test the `vpn-certd` binary, you can run the following commands:
+
+```bash
+make clean
+make build
+file ./bin/vpn-certd
+./bin/vpn-certd --socket ./dist/run/vpn-certd.sock --pki ./dist/pki --state ./dist/state --log-level info &
+printf '{"op":"HEALTH"}\n' | socat - UNIX-CONNECT:./dist/run/vpn-certd.sock
+```
