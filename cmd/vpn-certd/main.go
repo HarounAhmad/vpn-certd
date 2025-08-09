@@ -2,17 +2,18 @@ package main
 
 import (
 	"context"
-	"github.com/HarounAhmad/vpn-certd/internal/app"
-	"github.com/HarounAhmad/vpn-certd/internal/config"
-	"github.com/HarounAhmad/vpn-certd/internal/constants"
-	"github.com/HarounAhmad/vpn-certd/internal/logging"
-	"github.com/HarounAhmad/vpn-certd/internal/security"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/HarounAhmad/vpn-certd/internal/app"
+	"github.com/HarounAhmad/vpn-certd/internal/config"
+	"github.com/HarounAhmad/vpn-certd/internal/constants"
+	"github.com/HarounAhmad/vpn-certd/internal/logging"
+	"github.com/HarounAhmad/vpn-certd/internal/pki"
+	"github.com/HarounAhmad/vpn-certd/internal/security"
 	"github.com/HarounAhmad/vpn-certd/pkg/version"
 )
 
@@ -26,8 +27,16 @@ func main() {
 		os.Exit(2)
 	}
 
+	ca, err := pki.LoadCA(cfg.PKIDir, cfg.StateDir)
+	if err != nil {
+		log.Error("load_ca", slog.String("err", err.Error()))
+		os.Exit(2)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
-	if err := app.New(log).StartServer(ctx, cfg.SocketPath); err != nil {
+	a := app.New(log)
+	a.CA = ca
+	if err := a.StartServer(ctx, cfg.SocketPath); err != nil {
 		log.Error("start_server", slog.String("err", err.Error()))
 		os.Exit(2)
 	}

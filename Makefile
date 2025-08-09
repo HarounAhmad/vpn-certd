@@ -33,3 +33,12 @@ fmt:
 
 clean:
 	rm -rf bin dist
+
+
+dev-ca:
+	mkdir -p dist/pki
+	openssl genrsa -out dist/pki/int-ca.key 4096
+	openssl req -x509 -new -nodes -key dist/pki/int-ca.key -sha256 -days 3650 -subj "/CN=dev-intermediate" -out dist/pki/int-ca.crt
+
+print-ca:
+	openssl x509 -in dist/pki/int-ca.crt -noout -text | sed -n '1,25p'

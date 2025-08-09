@@ -182,7 +182,24 @@ to Test the `vpn-certd` binary, you can run the following commands:
 ```bash
 make clean
 make build
-file ./bin/vpn-certd
 ./bin/vpn-certd --socket ./dist/run/vpn-certd.sock --pki ./dist/pki --state ./dist/state --log-level info &
-printf '{"op":"HEALTH"}\n' | socat - UNIX-CONNECT:./dist/run/vpn-certd.sock
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op HEALTH
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn admin-haroun --profile client --key-type rsa4096 --passphrase "CorrectHorseBattery"
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op SIGN --cn admin-haroun --profile client --csr "-----BEGIN CERTIFICATE REQUEST-----\nMIIB...==\n-----END CERTIFICATE REQUEST-----"
+```
+```bash
+make dev-ca
+make build
+
+# Start daemon
+./bin/vpn-certd --socket ./dist/run/vpn-certd.sock --pki ./dist/pki --state ./dist/state --log-level info &
+
+# 1) GENKEY_AND_SIGN — server-side key + cert
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn admin-haroun --profile client --key-type rsa4096 --passphrase "CorrectHorseBattery"
+
+# 2) SIGN — CSR path
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/h.key
+openssl req -new -key /tmp/h.key -subj "/CN=guest-minecraft" -out /tmp/h.csr
+CSR="$(cat /tmp/h.csr)"
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op SIGN --cn guest-minecraft --profile client --csr "$CSR"
 ```
