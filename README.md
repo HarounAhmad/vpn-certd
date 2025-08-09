@@ -203,3 +203,18 @@ openssl req -new -key /tmp/h.key -subj "/CN=guest-minecraft" -out /tmp/h.csr
 CSR="$(cat /tmp/h.csr)"
 ./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op SIGN --cn guest-minecraft --profile client --csr "$CSR"
 ```
+```bash
+make build
+./bin/vpn-certd --socket ./dist/run/vpn-certd.sock --pki ./dist/pki --state ./dist/state --log-level info &
+
+# 1) issue to get a serial
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn test-revoke --profile client --key-type rsa4096 --passphrase "Xx123456789"
+
+# copy "serial" from response (e.g., 1000 or 1001 etc.)
+
+# 2) revoke it
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op REVOKE --serial 1000 --reason keyCompromise
+
+# 3) fetch CRL
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GET_CRL
+```
