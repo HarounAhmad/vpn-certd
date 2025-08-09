@@ -3,12 +3,11 @@ package app
 import (
 	"context"
 	"errors"
+	"github.com/HarounAhmad/vpn-certd/internal/api"
+	"github.com/HarounAhmad/vpn-certd/internal/constants"
+	"github.com/HarounAhmad/vpn-certd/internal/server/unixjson"
 	"log/slog"
 	"time"
-
-	"github.com/HarounAhmad/vpn-certd/pkg/internal/api"
-	"github.com/HarounAhmad/vpn-certd/pkg/internal/constants"
-	"github.com/HarounAhmad/vpn-certd/pkg/internal/server/unixjson"
 )
 
 type App struct {

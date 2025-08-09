@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/HarounAhmad/vpn-certd/internal/api"
+	"github.com/HarounAhmad/vpn-certd/internal/constants"
 	"log/slog"
 	"net"
 	"os"
 	"time"
-
-	"github.com/HarounAhmad/vpn-certd/pkg/internal/api"
-	"github.com/HarounAhmad/vpn-certd/pkg/internal/constants"
 )
 
 type Handler interface {

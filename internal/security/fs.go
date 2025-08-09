@@ -2,7 +2,7 @@ package security
 
 import (
 	"fmt"
-	"github.com/HarounAhmad/vpn-certd/pkg/internal/constants"
+	"github.com/HarounAhmad/vpn-certd/internal/constants"
 	"os"
 	"path/filepath"
 )

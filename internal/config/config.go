@@ -2,9 +2,8 @@ package config
 
 import (
 	"flag"
+	"github.com/HarounAhmad/vpn-certd/internal/constants"
 	"os"
-
-	"github.com/HarounAhmad/vpn-certd/pkg/internal/constants"
 )
 
 type Config struct {
