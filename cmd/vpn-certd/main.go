@@ -1,42 +1,58 @@
 package main
 
 import (
-	"context"
-	"github.com/HarounAhmad/vpn-certd/internal/app"
-	"github.com/HarounAhmad/vpn-certd/internal/config"
-	"github.com/HarounAhmad/vpn-certd/internal/constants"
-	"github.com/HarounAhmad/vpn-certd/internal/logging"
-	"github.com/HarounAhmad/vpn-certd/internal/security"
-	"log/slog"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"net"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
-	"github.com/HarounAhmad/vpn-certd/pkg/version"
+	"github.com/HarounAhmad/vpn-certd/internal/api"
 )
 
 func main() {
-	cfg := config.Load()
-	log := logging.New(cfg.LogLevel)
-	log.Info("starting", "name", version.Name, "version", version.Version, "commit", version.Commit)
+	var socket, op, cn, profile, keyType, pass, csr, serial, reason string
+	flag.StringVar(&socket, "socket", "./dist/run/vpn-certd.sock", "unix socket")
+	flag.StringVar(&op, "op", "HEALTH", "op: HEALTH|SIGN|GENKEY_AND_SIGN|REVOKE|GET_CRL")
+	flag.StringVar(&cn, "cn", "", "common name")
+	flag.StringVar(&profile, "profile", "client", "profile: client|server")
+	flag.StringVar(&keyType, "key-type", "rsa4096", "key type: rsa4096|ed25519")
+	flag.StringVar(&pass, "passphrase", "", "passphrase (for GENKEY_AND_SIGN)")
+	flag.StringVar(&csr, "csr", "", "PEM CSR (for SIGN)")
+	flag.StringVar(&serial, "serial", "", "serial (for REVOKE)")
+	flag.StringVar(&reason, "reason", "", "reason (for REVOKE)")
+	flag.Parse()
 
-	if err := security.EnsureSocketDir(cfg.SocketPath); err != nil {
-		log.Error("socket_dir", slog.String("err", err.Error()))
-		os.Exit(2)
+	req := api.Request{
+		Op:         api.Op(op),
+		CN:         cn,
+		Profile:    api.Profile(profile),
+		KeyType:    api.KeyType(keyType),
+		Passphrase: pass,
+		CSRPEM:     csr,
+		Serial:     serial,
+		Reason:     reason,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	if err := app.New(log).StartServer(ctx, cfg.SocketPath); err != nil {
-		log.Error("start_server", slog.String("err", err.Error()))
+	b, _ := json.Marshal(req)
+	conn, err := net.DialTimeout("unix", socket, 3*time.Second)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "dial:", err)
 		os.Exit(2)
 	}
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	<-sigs
-
-	cancel()
-	time.Sleep(constants.ShutdownTimeout)
-	log.Info("stopped")
+	defer conn.Close()
+	if _, err := conn.Write(append(b, '\n')); err != nil {
+		fmt.Fprintln(os.Stderr, "write:", err)
+		os.Exit(2)
+	}
+	dec := json.NewDecoder(conn)
+	var resp api.Response
+	if err := dec.Decode(&resp); err != nil {
+		fmt.Fprintln(os.Stderr, "decode:", err)
+		os.Exit(2)
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(resp)
 }

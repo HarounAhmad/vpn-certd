@@ -9,12 +9,15 @@ all: build
 dirs:
 	mkdir -p bin dist/run dist/pki dist/state
 
+CTL := bin/vpn-certctl
+
 build: dirs
-	# Force normal executable build; nuke any inherited GOFLAGS that request archives.
-	GOFLAGS= CGO_ENABLED=0 go build -trimpath -buildmode=exe \
+	GOFLAGS= CGO_ENABLED=0 go build -trimpath \
 		-ldflags "-s -w -X github.com/HarounAhmad/vpn-certd/pkg/version.Commit=$(COMMIT)" \
 		-o $(BIN) ./cmd/vpn-certd
 	chmod 0755 $(BIN)
+	GOFLAGS= CGO_ENABLED=0 go build -trimpath -o $(CTL) ./cmd/vpn-certctl
+	chmod 0755 $(CTL)
 
 run: build
 	./$(BIN) --socket ./dist/run/$(APP).sock --pki ./dist/pki --state ./dist/state --log-level info
