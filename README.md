@@ -218,3 +218,21 @@ make build
 # 3) fetch CRL
 ./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GET_CRL
 ```
+
+add the following to your dist/pki folder 
+```cnf
+[ req ]
+distinguished_name = dn
+x509_extensions    = v3_ca
+prompt             = no
+default_md         = sha256
+
+[ dn ]
+CN = dev-intermediate
+
+[ v3_ca ]
+basicConstraints       = critical,CA:TRUE,pathlen:0
+keyUsage               = critical,keyCertSign,cRLSign
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always,issuer
+```
