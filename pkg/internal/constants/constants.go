@@ -11,7 +11,7 @@ const (
 	EnvStateDir = "VPN_CERTD_STATE_DIR"
 	EnvLogLevel = "VPN_CERTD_LOG_LEVEL"
 
-	DefaultSocketPAth = "/run/vpn-certd.sock"
+	DefaultSocketPath = "/run/vpn-certd.sock"
 	DefaultPKIDir     = "/etc/vpn-certd/pki"
 	DefaultStateDir   = "/var/lib/vpn-certd"
 	DefaultLogLevel   = "info"
