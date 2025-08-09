@@ -1,0 +1,33 @@
+# IDE / Editor files
+.idea/
+.vscode/
+
+# Go build artifacts
+*.exe
+*.out
+*.test
+
+# Dependency files
+vendor/
+go.sum
+
+# OS / system files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Binaries
+bin/
+*.bin
+
+# Test cache
+*.coverprofile
+*.testresult
+*.tmp
+*.prof
+*.pprof
+
+# Other
+*.swp
