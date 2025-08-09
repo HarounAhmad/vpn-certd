@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	appName     = "vpn-certd"
+	AppName     = "vpn-certd"
 	EnvSocket   = "VPN_CERTD_SOCKET"
 	EnvPKIDir   = "VPN_CERTD_PKI_DIR"
 	EnvStateDir = "VPN_CERTD_STATE_DIR"
