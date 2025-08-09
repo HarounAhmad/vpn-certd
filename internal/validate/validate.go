@@ -92,4 +92,25 @@ func parseCNOnly(subj string) (string, error) {
 	return "", errors.New("invalid_subject_no_cn")
 }
 
+func SerialDec(s string) error {
+	if s == "" {
+		return errors.New("invalid_serial_empty")
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return errors.New("invalid_serial_dec")
+		}
+	}
+	return nil
+}
+
+func Reason(s string) error {
+	switch s {
+	case "", "unspecified", "keyCompromise", "cessationOfOperation", "superseded", "privilegeWithdrawn", "affiliationChanged", "caCompromise", "certificateHold":
+		return nil
+	default:
+		return errors.New("invalid_reason")
+	}
+}
+
 var _ = pkix.Name{}

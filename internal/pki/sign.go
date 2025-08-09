@@ -1,7 +1,6 @@
 package pki
 
 import (
-	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
@@ -48,9 +47,7 @@ func GenKeyAndSign(ca *CA, cn string, kt api.KeyType, profile api.Profile, days 
 	if ca == nil {
 		return nil, errors.New("nil CA")
 	}
-	switch profile {
-	case api.ProfileClient, api.ProfileServer:
-	default:
+	if profile != api.ProfileClient && profile != api.ProfileServer {
 		return nil, errors.New("invalid profile")
 	}
 
@@ -145,6 +142,3 @@ func SignCSR(ca *CA, csrPEM string, profile api.Profile, days int) (*SignResult,
 		Serial:   serial.String(),
 	}, nil
 }
-
-// keep imports for ecdsa to satisfy future curves
-var _ = ecdsa.PrivateKey{}

@@ -1,7 +1,11 @@
 package pki
 
 import (
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -16,7 +20,7 @@ import (
 
 type CA struct {
 	Cert   *x509.Certificate
-	Key    any
+	Key    crypto.Signer
 	Chain  [][]byte
 	PKIDir string
 	State  string
@@ -94,14 +98,37 @@ func nextSerial(stateDir string) (*big.Int, error) {
 	return n, nil
 }
 
-func parsePrivateKey(block *pem.Block) (any, error) {
+func parsePrivateKey(block *pem.Block) (crypto.Signer, error) {
 	switch block.Type {
 	case "RSA PRIVATE KEY":
-		return x509.ParsePKCS1PrivateKey(block.Bytes)
+		k, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		return k, nil
+	case "EC PRIVATE KEY":
+		k, err := x509.ParseECPrivateKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		return k, nil
 	case "PRIVATE KEY":
-		return x509.ParsePKCS8PrivateKey(block.Bytes)
+		anyk, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		switch k := anyk.(type) {
+		case *rsa.PrivateKey:
+			return k, nil
+		case *ecdsa.PrivateKey:
+			return k, nil
+		case ed25519.PrivateKey:
+			return k, nil
+		default:
+			return nil, fmt.Errorf("unsupported PKCS#8 key type %T", anyk)
+		}
 	default:
-		return nil, fmt.Errorf("unsupported key type: %s", block.Type)
+		return nil, fmt.Errorf("unsupported key PEM type %q", block.Type)
 	}
 }
 
@@ -114,7 +141,7 @@ func (c *CA) SignCert(tpl *x509.Certificate, pub any) ([]byte, *big.Int, error) 
 	now := time.Now().Add(-1 * time.Minute)
 	tpl.NotBefore = now
 	if tpl.NotAfter.IsZero() {
-		tpl.NotAfter = now.Add(180 * 24 * time.Hour) // default 180d
+		tpl.NotAfter = now.Add(180 * 24 * time.Hour)
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tpl, c.Cert, pub, c.Key)
 	if err != nil {
