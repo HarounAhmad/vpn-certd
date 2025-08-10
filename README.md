@@ -236,3 +236,27 @@ keyUsage               = critical,keyCertSign,cRLSign
 subjectKeyIdentifier   = hash
 authorityKeyIdentifier = keyid:always,issuer
 ```
+```bash
+make dev-ca
+make print-ca
+
+make build
+./bin/vpn-certd --socket ./dist/run/vpn-certd.sock --pki ./dist/pki --state ./dist/state --log-level info &
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn admin-haroun --profile client --key-type rsa4096 --passphrase "CorrectHorseBattery" > /tmp/issue.json
+jq -r '.cert_pem' /tmp/issue.json > dist/admin-haroun.crt
+jq -r '.key_pem_encrypted' /tmp/issue.json > dist/admin-haroun.key
+cp dist/pki/int-ca.crt dist/ca.crt
+echo "dummy-ta-key" > dist/ta.key
+./bin/vpn-bundle \
+-cn admin-haroun \
+-ca dist/ca.crt \
+-ta dist/ta.key \
+-cert dist/admin-haroun.crt \
+-key dist/admin-haroun.key \
+-remote 127.0.0.1 \
+-port 1194 \
+-proto udp \
+-out dist/admin-haroun.zip
+
+ls -lh dist/admin-haroun.zip
+```
