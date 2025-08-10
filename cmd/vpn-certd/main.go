@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io/ioutil"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -48,7 +49,11 @@ func main() {
 	a.Policy = pol
 	a.CRLOut = cfg.CRLOutPath
 	a.SetCNPattern(re)
-
+	ta := ""
+	if b, err := ioutil.ReadFile(cfg.TAPath); err == nil {
+		ta = string(b)
+	}
+	a.TAKey = ta
 	if err := a.StartServer(ctx, cfg.SocketPath); err != nil {
 		log.Error("start_server", slog.String("err", err.Error()))
 		os.Exit(2)
