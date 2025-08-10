@@ -14,7 +14,7 @@ import (
 func main() {
 	var socket, op, cn, profile, keyType, pass, csr, serial, reason string
 	flag.StringVar(&socket, "socket", "./dist/run/vpn-certd.sock", "unix socket")
-	flag.StringVar(&op, "op", "HEALTH", "op: HEALTH|SIGN|GENKEY_AND_SIGN|REVOKE|GET_CRL")
+	flag.StringVar(&op, "op", "HEALTH", "op: HEALTH|SIGN|GENKEY_AND_SIGN|REVOKE|GET_CRL|LIST_ISSUED")
 	flag.StringVar(&cn, "cn", "", "common name")
 	flag.StringVar(&profile, "profile", "client", "profile: client|server")
 	flag.StringVar(&keyType, "key-type", "rsa4096", "key type: rsa4096|ed25519")
