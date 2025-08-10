@@ -34,3 +34,8 @@ const (
 	DefaultPolicy = "/etc/vpn-certd/policy.yaml"
 	DefaultCRLOut = "/etc/openvpn/crl.pem"
 )
+
+const (
+	EnvTAPath     = "VPNCERTD_TAKEY"
+	DefaultTAPath = "/etc/openvpn/ta.key"
+)

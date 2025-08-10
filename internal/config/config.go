@@ -14,6 +14,7 @@ type Config struct {
 	LogLevel   string
 	PolicyPath string
 	CRLOutPath string
+	TAPath     string
 }
 
 func Load() Config {
@@ -25,6 +26,7 @@ func Load() Config {
 	level := getenvDefault(constants.EnvLogLevel, constants.DefaultLogLevel)
 	policy := getenvDefault(constants.EnvPolicyPath, constants.DefaultPolicy)
 	crlout := getenvDefault(constants.EnvCRLOutPath, constants.DefaultCRLOut)
+	ta := getenvDefault(constants.EnvTAPath, constants.DefaultTAPath)
 
 	flag.StringVar(&c.SocketPath, "socket", socket, "UNIX socket path")
 	flag.StringVar(&c.PKIDir, "pki", pki, "PKI directory (intermediate CA)")
@@ -32,6 +34,7 @@ func Load() Config {
 	flag.StringVar(&c.LogLevel, "log-level", level, "log level: debug|info|warn|error")
 	flag.StringVar(&c.PolicyPath, "policy", policy, "policy YAML file path")
 	flag.StringVar(&c.CRLOutPath, "crl-out", crlout, "CRL deployment path for OpenVPN")
+	flag.StringVar(&c.TAPath, "ta", ta, "path to tls-crypt ta.key")
 	flag.Parse()
 
 	return c
