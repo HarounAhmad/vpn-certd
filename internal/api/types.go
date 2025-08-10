@@ -8,6 +8,7 @@ const (
 	OpGenKeyAndSign Op = "GENKEY_AND_SIGN"
 	OpRevoke        Op = "REVOKE"
 	OpGetCRL        Op = "GET_CRL"
+	OpListIssued    Op = "LIST_ISSUED"
 )
 
 type Profile string
@@ -36,10 +37,19 @@ type Request struct {
 }
 
 type Response struct {
-	CertPEM   string `json:"cert_pem,omitempty"`
-	KeyPEMEnc string `json:"key_pem_encrypted,omitempty"`
-	CRLPEM    string `json:"crl_pem,omitempty"`
-	Serial    string `json:"serial,omitempty"`
-	NotAfter  string `json:"not_after,omitempty"`
-	Error     string `json:"err,omitempty"`
+	CertPEM   string       `json:"cert_pem,omitempty"`
+	KeyPEMEnc string       `json:"key_pem_encrypted,omitempty"`
+	CRLPEM    string       `json:"crl_pem,omitempty"`
+	Serial    string       `json:"serial,omitempty"`
+	NotAfter  string       `json:"not_after,omitempty"`
+	Issued    []IssuedMeta `json:"issued,omitempty"`
+	Error     string       `json:"err,omitempty"`
+}
+
+type IssuedMeta struct {
+	Serial   string `json:"serial"`
+	CN       string `json:"cn"`
+	Profile  string `json:"profile"`
+	NotAfter string `json:"not_after"` // RFC3339
+	SHA256   string `json:"sha256"`    // cert DER fingerprint hex
 }
