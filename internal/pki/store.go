@@ -150,3 +150,7 @@ func (c *CA) SignCert(tpl *x509.Certificate, pub any) ([]byte, *big.Int, error) 
 	p := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	return p, serial, nil
 }
+
+func (c *CA) CertPEM() string {
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c.Cert.Raw}))
+}
