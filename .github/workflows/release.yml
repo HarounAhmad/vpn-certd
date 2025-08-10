@@ -55,7 +55,7 @@ jobs:
       - name: Ensure modules and generate go.sum
         run: |
           set -euxo pipefail
-          go get gopkg.in/yaml.v3@latest
+          go get gopkg.in/yaml.v3@v3.0.1
           go mod tidy
           go mod download
           test -s go.sum
@@ -78,11 +78,13 @@ jobs:
           cd release
           sha256sum * > SHA256SUMS
 
-      - name: Upload artifacts
+      - name: Upload artifacts (per-arch)
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ needs.tag.outputs.tag }}
+          name: release-${{ needs.tag.outputs.tag }}-${{ matrix.goos }}-${{ matrix.goarch }}
           path: release/*
+          if-no-files-found: error
+          retention-days: 7
 
   publish:
     name: Publish GitHub Release
@@ -90,16 +92,12 @@ jobs:
     needs: [tag, build]
     if: needs.tag.outputs.tag != ''
     steps:
-      - name: Download artifacts
+      - name: Download all release artifacts
         uses: actions/download-artifact@v4
         with:
-          path: dist-artifacts
-
-      - name: Gather assets
-        run: |
-          mkdir -p release-all
-          find dist-artifacts -type f -exec cp {} release-all/ \;
-          ls -l release-all
+          pattern: release-${{ needs.tag.outputs.tag }}-*
+          merge-multiple: true
+          path: release-all
 
       - name: Create release
         uses: softprops/action-gh-release@v2
