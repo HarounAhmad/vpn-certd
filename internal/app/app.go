@@ -26,7 +26,6 @@ type App struct {
 
 func New(log *slog.Logger) *App { return &App{Log: log} }
 
-// SetCNPattern allows main to configure the compiled regex safely.
 func (a *App) SetCNPattern(r *regexp.Regexp) { a.cnPattern = r }
 
 func (a *App) Handler() unixjson.Handler { return a }

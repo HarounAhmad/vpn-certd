@@ -95,7 +95,6 @@ func (c *CA) writeCRL(db *revokedDB) (string, error) {
 		revoked = append(revoked, pkix.RevokedCertificate{
 			SerialNumber:   n,
 			RevocationTime: time.Unix(e.RevokedAtUnix, 0).UTC(),
-			// ReasonCode not required by OpenVPN; omit extension.
 		})
 	}
 

@@ -49,7 +49,7 @@ func Passphrase(p string) error {
 	if len(p) < minPassLen || len(p) > maxPassLen {
 		return errors.New("invalid_passphrase_length")
 	}
-	// very light policy; strengthen later
+	// TODO very light policy; strengthen later
 	if strings.ContainsRune(p, '\n') {
 		return errors.New("invalid_passphrase_newline")
 	}
@@ -80,7 +80,6 @@ func parseCNOnly(subj string) (string, error) {
 	if s == "" {
 		return "", nil
 	}
-	// We don't fully parse DN; tolerate "CN=foo" or "/CN=foo"
 	s = strings.TrimPrefix(s, "/")
 	parts := strings.Split(s, "/")
 	for _, p := range parts {

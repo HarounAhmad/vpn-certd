@@ -58,7 +58,6 @@ func (c *CA) ListIssued(max int) ([]api.IssuedMeta, error) {
 
 	var out []api.IssuedMeta
 	sc := bufio.NewScanner(f)
-	// 512K linesize safety
 	const maxLine = 512 * 1024
 	buf := make([]byte, 0, 64*1024)
 	sc.Buffer(buf, maxLine)
@@ -73,7 +72,6 @@ func (c *CA) ListIssued(max int) ([]api.IssuedMeta, error) {
 	if err := sc.Err(); err != nil {
 		return nil, err
 	}
-	// trim to last N if needed
 	if max > 0 && len(out) > max {
 		out = out[len(out)-max:]
 	}
@@ -98,13 +96,11 @@ func (c *CA) ExistsCNActive(cn string) (bool, error) {
 		return false, err
 	}
 	for _, it := range list {
-		// naive active check: NotAfter in future and not revoked in DB
 		na, err := time.Parse(time.RFC3339, it.NotAfter)
 		if err != nil {
 			continue
 		}
 		if it.CN == cn && time.Now().Before(na) {
-			// if revoked, skip
 			if revoked, _ := c.isSerialRevoked(it.Serial); revoked {
 				continue
 			}

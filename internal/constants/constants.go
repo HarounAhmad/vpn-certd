@@ -23,7 +23,6 @@ const (
 )
 
 const (
-	// octal literals
 	DirPerm0700    = 0o700
 	FilePerm0600   = 0o600
 	SocketPerm0600 = 0o600

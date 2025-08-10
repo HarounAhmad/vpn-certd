@@ -29,7 +29,6 @@ func Load(path string) (Policy, error) {
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
-		// if missing, use defaults
 		return Default(), nil
 	}
 	var p Policy

@@ -50,6 +50,6 @@ type IssuedMeta struct {
 	Serial   string `json:"serial"`
 	CN       string `json:"cn"`
 	Profile  string `json:"profile"`
-	NotAfter string `json:"not_after"` // RFC3339
-	SHA256   string `json:"sha256"`    // cert DER fingerprint hex
+	NotAfter string `json:"not_after"`
+	SHA256   string `json:"sha256"`
 }
