@@ -43,3 +43,10 @@ dev-ca:
 
 print-ca:
 	openssl x509 -in dist/pki/int-ca.crt -noout -text | sed -n '1,80p'
+
+deps:
+	go mod tidy
+
+install-policy:
+	mkdir -p dist/etc
+	cp config/policy.yaml dist/etc/policy.yaml

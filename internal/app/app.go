@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/HarounAhmad/vpn-certd/internal/api"
+	"github.com/HarounAhmad/vpn-certd/internal/constants"
 	"github.com/HarounAhmad/vpn-certd/internal/pki"
 	"github.com/HarounAhmad/vpn-certd/internal/policy"
 	"github.com/HarounAhmad/vpn-certd/internal/security"
@@ -24,6 +25,9 @@ type App struct {
 }
 
 func New(log *slog.Logger) *App { return &App{Log: log} }
+
+// SetCNPattern allows main to configure the compiled regex safely.
+func (a *App) SetCNPattern(r *regexp.Regexp) { a.cnPattern = r }
 
 func (a *App) Handler() unixjson.Handler { return a }
 
@@ -112,7 +116,6 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 		if err != nil {
 			return api.Response{}, xerr.InternalErr(err.Error())
 		}
-		// deploy to OpenVPN path atomically
 		if a.CRLOut != "" {
 			if err := security.AtomicWrite(a.CRLOut, []byte(crl), 0o644); err != nil {
 				a.Log.Warn("crl_deploy_failed", "path", a.CRLOut, "err", err.Error())
@@ -146,11 +149,9 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 }
 
 func (a *App) ensureCN(cn string) error {
-	// policy regex
 	if a.cnPattern != nil && !a.cnPattern.MatchString(cn) {
 		return xerr.Bad("cn_policy")
 	}
-	// uniqueness
 	if !a.Policy.AllowDuplicateCN {
 		exists, err := a.CA.ExistsCNActive(cn)
 		if err != nil {
@@ -161,4 +162,13 @@ func (a *App) ensureCN(cn string) error {
 		}
 	}
 	return nil
+}
+
+func (a *App) StartServer(ctx context.Context, socket string) error {
+	s := &unixjson.Server{
+		Socket: socket,
+		Log:    a.Log.With("component", constants.AppName),
+		H:      a,
+	}
+	return s.Start(ctx)
 }

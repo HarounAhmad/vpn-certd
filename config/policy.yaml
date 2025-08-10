@@ -1,0 +1,5 @@
+# vpn-certd policy
+client_days: 180
+server_days: 365
+allow_duplicate_cn: false
+cn_pattern: '^[A-Za-z0-9._-]{3,64}$'
