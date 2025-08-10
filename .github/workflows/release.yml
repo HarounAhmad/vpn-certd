@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   tag:
-    name: Compute next tag (Conventional Commits) and create it
+    name: Compute next tag and create it (Conventional Commits)
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.new_tag }}
@@ -51,6 +51,10 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: true
+
+      - name: Dependencies
+        run: |
+          make deps || { go mod tidy && go mod download; }
 
       - name: Build
         env:

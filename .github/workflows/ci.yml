@@ -29,6 +29,10 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      - name: Dependencies
+        run: |
+          make deps || { go mod tidy && go mod download; }
+
       - name: Build
         run: make build
 
@@ -64,6 +68,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y openssl socat jq unzip
+
+      - name: Dependencies
+        run: |
+          make deps || { go mod tidy && go mod download; }
 
       - name: Build
         run: make build
