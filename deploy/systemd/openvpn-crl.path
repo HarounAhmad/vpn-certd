@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch CRL for changes and reload OpenVPN
+
+[Path]
+PathChanged=/etc/openvpn/crl.pem
+
+[Install]
+WantedBy=multi-user.target

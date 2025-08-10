@@ -1,4 +1,3 @@
-# vpn-certd policy
 client_days: 180
 server_days: 365
 allow_duplicate_cn: false

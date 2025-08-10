@@ -1,0 +1,9 @@
+[Unit]
+Description=Reload OpenVPN on CRL update
+
+[Service]
+Type=oneshot
+# Arch: adjust the unit name if you use a different instance
+ExecStart=/usr/bin/systemctl reload openvpn-server@server.service
+User=root
+Group=root

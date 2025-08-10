@@ -50,3 +50,27 @@ deps:
 install-policy:
 	mkdir -p dist/etc
 	cp config/policy.yaml dist/etc/policy.yaml
+
+
+install:
+	install -Dm0755 bin/vpn-certd /usr/local/bin/vpn-certd
+	install -Dm0755 bin/vpn-certctl /usr/local/bin/vpn-certctl
+	install -Dm0755 bin/vpn-bundle /usr/local/bin/vpn-bundle
+	install -Dm0644 config/policy.yaml /etc/vpn-certd/policy.yaml
+	install -Dm0644 deploy/systemd/vpn-certd.service /etc/systemd/system/vpn-certd.service
+	install -Dm0644 deploy/systemd/vpn-certd.socket /etc/systemd/system/vpn-certd.socket
+	install -Dm0644 deploy/systemd/openvpn-crl.path /etc/systemd/system/openvpn-crl.path
+	install -Dm0644 deploy/systemd/openvpn-crl.service /etc/systemd/system/openvpn-crl.service
+	install -Dm0644 deploy/tmpfiles/vpn-certd.conf /usr/lib/tmpfiles.d/vpn-certd.conf
+	install -Dm0644 deploy/sysusers/vpn-certd.conf /usr/lib/sysusers.d/vpn-certd.conf
+	install -d -m0755 /var/lib/vpn-certd/pki /var/lib/vpn-certd/state
+	install -d -m0755 /etc/vpn-certd
+	@if [ -f dist/pki/int-ca.crt ]; then install -Dm0600 dist/pki/int-ca.key /var/lib/vpn-certd/pki/int-ca.key; fi
+	@if [ -f dist/pki/int-ca.crt ]; then install -Dm0644 dist/pki/int-ca.crt /var/lib/vpn-certd/pki/int-ca.crt; fi
+
+enable:
+	systemd-sysusers
+	systemd-tmpfiles --create
+	systemctl daemon-reload
+	systemctl enable --now vpn-certd.socket
+	systemctl enable --now openvpn-crl.path

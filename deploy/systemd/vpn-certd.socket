@@ -1,0 +1,12 @@
+[Unit]
+Description=VPN Certificate Daemon Socket
+
+[Socket]
+ListenStream=/run/vpn-certd/vpn-certd.sock
+SocketMode=0660
+SocketUser=vpncertd
+SocketGroup=vpncertd
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target
