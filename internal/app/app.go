@@ -10,7 +10,7 @@ import (
 	"github.com/HarounAhmad/vpn-certd/internal/pki"
 	"github.com/HarounAhmad/vpn-certd/internal/server/unixjson"
 	"github.com/HarounAhmad/vpn-certd/internal/validate"
-	github_com_HarounAhmad_vpn_certd_internal_xerr "github.com/HarounAhmad/vpn-certd/internal/xerr"
+	"github.com/HarounAhmad/vpn-certd/internal/xerr"
 )
 
 type App struct {
@@ -32,19 +32,19 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 
 	case api.OpGenKeyAndSign:
 		if err := validate.CN(req.CN); err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.Bad("cn")
+			return api.Response{}, xerr.Bad("cn")
 		}
 		if err := validate.Profile(req.Profile); err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.Bad("profile")
+			return api.Response{}, xerr.Bad("profile")
 		}
 		if err := validate.KeyType(req.KeyType); err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.Bad("key_type")
+			return api.Response{}, xerr.Bad("key_type")
 		}
 		if err := validate.Passphrase(req.Passphrase); err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.Bad("passphrase")
+			return api.Response{}, xerr.Bad("passphrase")
 		}
 		if a.CA == nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.InternalErr("ca_not_loaded")
+			return api.Response{}, xerr.InternalErr("ca_not_loaded")
 		}
 		days := defaultClientDays
 		if req.Profile == api.ProfileServer {
@@ -52,8 +52,9 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 		}
 		res, err := pki.GenKeyAndSign(a.CA, req.CN, req.KeyType, req.Profile, days, req.Passphrase)
 		if err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.InternalErr(err.Error())
+			return api.Response{}, xerr.InternalErr(err.Error())
 		}
+		_ = a.CA.AppendIssued(req.CN, string(req.Profile), res.Serial, res.NotAfter.UTC().Format(time.RFC3339), res.CertPEM)
 		return api.Response{
 			CertPEM:   res.CertPEM,
 			KeyPEMEnc: res.KeyPEM,
@@ -63,16 +64,16 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 
 	case api.OpSign:
 		if err := validate.CN(req.CN); err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.Bad("cn")
+			return api.Response{}, xerr.Bad("cn")
 		}
 		if err := validate.Profile(req.Profile); err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.Bad("profile")
+			return api.Response{}, xerr.Bad("profile")
 		}
 		if err := validate.CSR(req.CSRPEM); err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.Bad("csr_pem")
+			return api.Response{}, xerr.Bad("csr_pem")
 		}
 		if a.CA == nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.InternalErr("ca_not_loaded")
+			return api.Response{}, xerr.InternalErr("ca_not_loaded")
 		}
 		days := defaultClientDays
 		if req.Profile == api.ProfileServer {
@@ -80,8 +81,9 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 		}
 		res, err := pki.SignCSR(a.CA, req.CSRPEM, req.Profile, days)
 		if err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.InternalErr(err.Error())
+			return api.Response{}, xerr.InternalErr(err.Error())
 		}
+		_ = a.CA.AppendIssued(req.CN, string(req.Profile), res.Serial, res.NotAfter.UTC().Format(time.RFC3339), res.CertPEM)
 		return api.Response{
 			CertPEM:  res.CertPEM,
 			NotAfter: res.NotAfter.UTC().Format(time.RFC3339),
@@ -90,32 +92,42 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 
 	case api.OpRevoke:
 		if err := validate.SerialDec(req.Serial); err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.Bad("serial")
+			return api.Response{}, xerr.Bad("serial")
 		}
 		if err := validate.Reason(req.Reason); err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.Bad("reason")
+			return api.Response{}, xerr.Bad("reason")
 		}
 		if a.CA == nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.InternalErr("ca_not_loaded")
+			return api.Response{}, xerr.InternalErr("ca_not_loaded")
 		}
 		crl, err := a.CA.RevokeAndWriteCRL(req.Serial, req.Reason)
 		if err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.InternalErr(err.Error())
+			return api.Response{}, xerr.InternalErr(err.Error())
 		}
 		return api.Response{CRLPEM: crl}, nil
 
 	case api.OpGetCRL:
 		if a.CA == nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.InternalErr("ca_not_loaded")
+			return api.Response{}, xerr.InternalErr("ca_not_loaded")
 		}
 		crl, err := a.CA.ReadCRL()
 		if err != nil {
-			return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.InternalErr(err.Error())
+			return api.Response{}, xerr.InternalErr(err.Error())
 		}
 		return api.Response{CRLPEM: crl}, nil
 
+	case api.OpListIssued:
+		if a.CA == nil {
+			return api.Response{}, xerr.InternalErr("ca_not_loaded")
+		}
+		list, err := a.CA.ListIssued(200)
+		if err != nil {
+			return api.Response{}, xerr.InternalErr(err.Error())
+		}
+		return api.Response{Issued: list}, nil
+
 	default:
-		return api.Response{}, github_com_HarounAhmad_vpn_certd_internal_xerr.Bad("unknown_op")
+		return api.Response{}, xerr.Bad("unknown_op")
 	}
 }
 
