@@ -26,9 +26,6 @@ jobs:
         run: |
           diff -u <(echo -n) <(gofmt -s -l . | tee /dev/stderr)
 
-      - name: go vet
-        run: go vet ./...
-
       - name: Ensure modules and generate go.sum
         run: |
           set -euxo pipefail
@@ -41,6 +38,8 @@ jobs:
           # show what got generated for debugging
           wc -l go.sum
           head -n 5 go.sum || true
+      - name: go vet
+        run: go vet ./...
 
       - name: Build
         run: make build
