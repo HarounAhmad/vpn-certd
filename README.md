@@ -1,6 +1,7 @@
 # VPN Certificate Issuance Agent (`vpn-certd`)
 
 [![CI](https://github.com/HarounAhmad/vpn-certd/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/HarounAhmad/vpn-certd/actions/workflows/ci.yml)
+[![Release](https://github.com/HarounAhmad/vpn-certd/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/HarounAhmad/vpn-certd/actions/workflows/release.yml)
 [![Release](https://img.shields.io/github/v/release/HarounAhmad/vpn-certd?include_prereleases&sort=semver)](https://github.com/HarounAhmad/vpn-certd/releases)
 
 
