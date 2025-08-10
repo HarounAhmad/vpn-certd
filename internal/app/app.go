@@ -2,7 +2,12 @@ package app
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
+	"github.com/HarounAhmad/vpn-certd/internal/bundle"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"regexp"
 	"time"
 
@@ -22,6 +27,7 @@ type App struct {
 	Policy    policy.Policy
 	cnPattern *regexp.Regexp
 	CRLOut    string
+	TAKey     string
 }
 
 func New(log *slog.Logger) *App { return &App{Log: log} }
@@ -63,6 +69,8 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 			return api.Response{}, xerr.InternalErr(err.Error())
 		}
 		_ = a.CA.AppendIssued(req.CN, string(req.Profile), res.Serial, res.NotAfter.UTC().Format(time.RFC3339), res.CertPEM)
+		a.writePEMCache(req.CN, res.CertPEM, res.KeyPEM)
+
 		return api.Response{
 			CertPEM:   res.CertPEM,
 			KeyPEMEnc: res.KeyPEM,
@@ -95,6 +103,7 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 			return api.Response{}, xerr.InternalErr(err.Error())
 		}
 		_ = a.CA.AppendIssued(req.CN, string(req.Profile), res.Serial, res.NotAfter.UTC().Format(time.RFC3339), res.CertPEM)
+		a.writePEMCache(req.CN, res.CertPEM, "")
 		return api.Response{
 			CertPEM:  res.CertPEM,
 			NotAfter: res.NotAfter.UTC().Format(time.RFC3339),
@@ -142,6 +151,39 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 		}
 		return api.Response{Issued: list}, nil
 
+	case api.OpBuildBundle:
+		if req.Bundle == nil {
+			return api.Response{}, xerr.Bad("bundle")
+		}
+		if err := validate.CN(req.Bundle.CN); err != nil {
+			return api.Response{}, xerr.Bad("cn")
+		}
+		if req.Bundle.RemoteHost == "" || req.Bundle.RemotePort <= 0 {
+			return api.Response{}, xerr.Bad("remote")
+		}
+		if a.CA == nil {
+			return api.Response{}, xerr.InternalErr("ca_not_loaded")
+		}
+		certPEM, keyPEM, err := a.lookupIssuedPEMs(req.Bundle.CN, req.Bundle.IncludeKey)
+		if err != nil {
+			return api.Response{}, xerr.InternalErr(err.Error())
+		}
+		in := bundle.Inputs{
+			CN:         req.Bundle.CN,
+			CAPEM:      a.CA.CertPEM(),
+			TaKey:      a.TAKey,
+			CertPEM:    certPEM,
+			KeyPEMOpt:  keyPEM,
+			RemoteHost: req.Bundle.RemoteHost,
+			RemotePort: req.Bundle.RemotePort,
+			Proto:      req.Bundle.Proto,
+		}
+		out, err := bundle.Build(in)
+		if err != nil {
+			return api.Response{}, xerr.InternalErr(err.Error())
+		}
+		return api.Response{ZipB64: base64.StdEncoding.EncodeToString(out.ZipBytes)}, nil
+
 	default:
 		return api.Response{}, xerr.Bad("unknown_op")
 	}
@@ -161,6 +203,30 @@ func (a *App) ensureCN(cn string) error {
 		}
 	}
 	return nil
+}
+
+func (a *App) pemCacheDir() string { return filepath.Join(a.CA.State, ".pemcache") }
+
+func (a *App) writePEMCache(cn, certPEM, keyPEM string) {
+	_ = os.MkdirAll(a.pemCacheDir(), 0o700)
+	_ = os.WriteFile(filepath.Join(a.pemCacheDir(), cn+".crt"), []byte(certPEM), 0o600)
+	if keyPEM != "" {
+		_ = os.WriteFile(filepath.Join(a.pemCacheDir(), cn+".key"), []byte(keyPEM), 0o600)
+	}
+}
+
+func (a *App) lookupIssuedPEMs(cn string, includeKey bool) (string, string, error) {
+	certB, err := os.ReadFile(filepath.Join(a.pemCacheDir(), cn+".crt"))
+	if err != nil {
+		return "", "", fmt.Errorf("cert_missing")
+	}
+	var key string
+	if includeKey {
+		if b, err := os.ReadFile(filepath.Join(a.pemCacheDir(), cn+".key")); err == nil {
+			key = string(b)
+		}
+	}
+	return string(certB), key, nil
 }
 
 func (a *App) StartServer(ctx context.Context, socket string) error {

@@ -9,6 +9,7 @@ const (
 	OpRevoke        Op = "REVOKE"
 	OpGetCRL        Op = "GET_CRL"
 	OpListIssued    Op = "LIST_ISSUED"
+	OpBuildBundle   Op = "BUILD_BUNDLE"
 )
 
 type Profile string
