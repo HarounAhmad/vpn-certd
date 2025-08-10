@@ -260,3 +260,7 @@ echo "dummy-ta-key" > dist/ta.key
 
 ls -lh dist/admin-haroun.zip
 ```
+```bash
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn admin-haroun --profile client --key-type rsa4096 --passphrase "CorrectHorseBattery"
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op LIST_ISSUED
+```
