@@ -26,6 +26,22 @@ const (
 	KeyEd25519 KeyType = "ed25519"
 )
 
+type IssuedMeta struct {
+	Serial   string `json:"serial"`
+	CN       string `json:"cn"`
+	Profile  string `json:"profile"`
+	NotAfter string `json:"not_after"`
+	SHA256   string `json:"sha256"`
+}
+
+type BundleReq struct {
+	CN         string `json:"cn"`
+	IncludeKey bool   `json:"include_key"`
+	RemoteHost string `json:"remote_host"`
+	RemotePort int    `json:"remote_port"`
+	Proto      string `json:"proto"`
+}
+
 type Request struct {
 	Op         Op         `json:"op"`
 	CN         string     `json:"cn,omitempty"`
@@ -47,20 +63,4 @@ type Response struct {
 	Issued    []IssuedMeta `json:"issued,omitempty"`
 	ZipB64    string       `json:"zip_b64,omitempty"`
 	Error     string       `json:"err,omitempty"`
-}
-
-type IssuedMeta struct {
-	Serial   string `json:"serial"`
-	CN       string `json:"cn"`
-	Profile  string `json:"profile"`
-	NotAfter string `json:"not_after"`
-	SHA256   string `json:"sha256"`
-}
-
-type BundleReq struct {
-	CN         string `json:"cn"`
-	IncludeKey bool   `json:"include_key"`
-	RemoteHost string `json:"remote_host"`
-	RemotePort int    `json:"remote_port"`
-	Proto      string `json:"proto"`
 }
