@@ -173,6 +173,69 @@ crl-verify /etc/openvpn/crl.pem
 
 ---
 
+### Workflows
+
+- CI (`.github/workflows/ci.yml`)
+    - Lint: `gofmt -s`, `go vet`.
+    - Build: all binaries with `make build`.
+    - Unit tests: `go test ./...`.
+    - Integration test (Linux):
+        1) Create dev intermediate CA via OpenSSL.
+        2) Start `vpn-certd` with local UNIX socket.
+        3) `GENKEY_AND_SIGN` for CN `ci-user` with encrypted key.
+        4) `BUILD_BUNDLE` via daemon → produce `dist/ci-user.zip`.
+        5) Revoke serial → verify `crl.pem` deployment.
+    - Artifacts: uploads dev binaries and integration outputs (bundle ZIP, CRL, state).
+
+- Release (`.github/workflows/release.yml`)
+    - Triggers on tags `v*.*.*`.
+    - Cross-compiles static binaries for:
+        - linux/amd64
+        - linux/arm64
+    - Produces `vpn-certd-<os>-<arch>`, `vpn-certctl-<os>-<arch>`, `vpn-bundle-<os>-<arch>`, and `SHA256SUMS`.
+    - Publishes a GitHub Release with all artifacts.
+
+### Local reproduction of the integration path
+
+```bash
+# Build
+make build
+
+# Dev CA
+mkdir -p dist/pki
+cat > dist/pki/openssl.cnf <<'CNF'
+[ req ]
+distinguished_name = dn
+x509_extensions    = v3_ca
+prompt             = no
+default_md         = sha256
+
+[ dn ]
+CN = dev-intermediate
+
+[ v3_ca ]
+basicConstraints       = critical,CA:TRUE,pathlen:0
+keyUsage               = critical,keyCertSign,cRLSign
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always,issuer
+CNF
+make dev-ca
+cp config/policy.example.yaml dist/etc/policy.yaml || true
+echo "dummy-ta-key" > dist/ta.key
+
+# Run daemon
+./bin/vpn-certd --socket ./dist/run/vpn-certd.sock --pki ./dist/pki --state ./dist/state --policy ./dist/etc/policy.yaml --crl-out ./dist/openvpn/crl.pem --ta ./dist/ta.key --log-level info &
+
+# Issue + bundle + revoke
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn local --profile client --key-type rsa4096 --passphrase "Pass123" > /tmp/issue.json
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op BUILD_BUNDLE --bundle-cn local --bundle-remote 127.0.0.1 --bundle-port 1194 --bundle-proto udp --bundle-include-key --bundle-out ./dist/local.zip
+SER=$(jq -r '.serial' /tmp/issue.json)
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op REVOKE --serial "$SER" --reason keyCompromise
+```
+### Notes
+- The CI integration run proves: daemon starts, signs, bundles, revokes, and writes a valid CRL.
+- Release binaries are CGO-disabled and suitable for static deployment.
+
 ## Security Notes
 - Limit socket access via filesystem ACLs.
 - Run under restricted user, apply `systemd` hardening options.

@@ -1,0 +1,105 @@
+name: Auto Tag + Release
+
+on:
+  push:
+    branches: [ master ]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Compute next tag (Conventional Commits) and create it
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.new_tag }}
+      changelog: ${{ steps.tag.outputs.changelog }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Auto tag
+        id: tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          release_branches: master
+          tag_prefix: v
+          default_bump: patch
+          dry_run: false
+
+      - name: Show tag
+        run: echo "TAG=${{ steps.tag.outputs.new_tag }}"
+
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    needs: [tag]
+    if: needs.tag.outputs.tag != ''
+    strategy:
+      matrix:
+        goos: [ linux ]
+        goarch: [ amd64, arm64 ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p release
+          COMMIT=$(git rev-parse --short HEAD || echo dev)
+          CGO_ENABLED=0 go build -trimpath \
+            -ldflags "-s -w -X github.com/HarounAhmad/vpn-certd/pkg/version.Commit=${COMMIT}" \
+            -o release/vpn-certd-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/vpn-certd
+          CGO_ENABLED=0 go build -trimpath -o release/vpn-certctl-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/vpn-certctl
+          CGO_ENABLED=0 go build -trimpath -o release/vpn-bundle-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/vpn-bundle
+
+      - name: Checksums
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ needs.tag.outputs.tag }}
+          path: release/*
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: [tag, build]
+    if: needs.tag.outputs.tag != ''
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+
+      - name: Gather assets
+        run: |
+          mkdir -p release-all
+          find dist-artifacts -type f -exec cp {} release-all/ \;
+          ls -l release-all
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.tag.outputs.tag }}
+          name: ${{ needs.tag.outputs.tag }}
+          body: ${{ needs.tag.outputs.changelog }}
+          files: |
+            release-all/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

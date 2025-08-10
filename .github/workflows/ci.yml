@@ -1,0 +1,164 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-build-test:
+    name: Lint • Build • Unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: go fmt check
+        run: |
+          diff -u <(echo -n) <(gofmt -s -l . | tee /dev/stderr)
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Build
+        run: make build
+
+      - name: Unit tests
+        run: go test -v ./...
+
+      - name: Upload binaries (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64-dev-binaries
+          path: |
+            bin/vpn-certd
+            bin/vpn-certctl
+            bin/vpn-bundle
+          if-no-files-found: error
+
+  integration:
+    name: Integration — end-to-end (daemon → issue → bundle)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [lint-build-test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Install test deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssl socat jq unzip
+
+      - name: Build
+        run: make build
+
+      - name: Prepare dev CA config
+        run: |
+          mkdir -p dist/pki dist/etc
+          cat > dist/pki/openssl.cnf <<'CNF'
+          [ req ]
+          distinguished_name = dn
+          x509_extensions    = v3_ca
+          prompt             = no
+          default_md         = sha256
+
+          [ dn ]
+          CN = dev-intermediate
+
+          [ v3_ca ]
+          basicConstraints       = critical,CA:TRUE,pathlen:0
+          keyUsage               = critical,keyCertSign,cRLSign
+          subjectKeyIdentifier   = hash
+          authorityKeyIdentifier = keyid:always,issuer
+          CNF
+          make dev-ca
+          cp config/policy.example.yaml dist/etc/policy.yaml || true
+
+      - name: Start daemon
+        run: |
+          mkdir -p dist/openvpn
+          echo "dummy-ta-key" > dist/ta.key
+          ./bin/vpn-certd \
+            --socket ./dist/run/vpn-certd.sock \
+            --pki ./dist/pki \
+            --state ./dist/state \
+            --policy ./dist/etc/policy.yaml \
+            --crl-out ./dist/openvpn/crl.pem \
+            --ta ./dist/ta.key \
+            --log-level info &
+          echo $! > dist/vpn-certd.pid
+          for i in $(seq 1 50); do [ -S ./dist/run/vpn-certd.sock ] && break; sleep 0.1; done
+          [ -S ./dist/run/vpn-certd.sock ]
+
+      - name: Health probe
+        run: printf '{"op":"HEALTH"}\n' | socat - UNIX-CONNECT:./dist/run/vpn-certd.sock
+
+      - name: Issue client cert with encrypted key
+        id: issue
+        run: |
+          ./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock \
+            --op GENKEY_AND_SIGN \
+            --cn ci-user \
+            --profile client \
+            --key-type rsa4096 \
+            --passphrase "CI-OneTime-Secret" > /tmp/issue.json
+
+          jq -e '.cert_pem and .key_pem_encrypted and .serial and .not_after' /tmp/issue.json >/dev/null
+          jq -r '.cert_pem' /tmp/issue.json > dist/ci-user.crt
+          jq -r '.key_pem_encrypted' /tmp/issue.json > dist/ci-user.key
+
+      - name: Build bundle via daemon (BUILD_BUNDLE)
+        run: |
+          ./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock \
+            --op BUILD_BUNDLE \
+            --bundle-cn ci-user \
+            --bundle-remote 127.0.0.1 \
+            --bundle-port 1194 \
+            --bundle-proto udp \
+            --bundle-include-key \
+            --bundle-out ./dist/ci-user.zip
+
+          unzip -l dist/ci-user.zip
+          unzip -l dist/ci-user.zip | grep -q "ci-user/ca.crt"
+          unzip -l dist/ci-user.zip | grep -q "ci-user/ta.key"
+          unzip -l dist/ci-user.zip | grep -q "ci-user/ci-user.crt"
+          unzip -l dist/ci-user.zip | grep -q "ci-user/client.ovpn"
+          unzip -l dist/ci-user.zip | grep -q "ci-user/client-inline.ovpn"
+
+      - name: Revoke and verify CRL deployed
+        run: |
+          SER=$(jq -r '.serial' /tmp/issue.json)
+          ./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op REVOKE --serial "$SER" --reason keyCompromise > /tmp/rev.json
+          jq -e '.crl_pem' /tmp/rev.json >/dev/null
+          test -s ./dist/openvpn/crl.pem
+
+      - name: Stop daemon
+        if: always()
+        run: |
+          if [ -f dist/vpn-certd.pid ]; then kill $(cat dist/vpn-certd.pid) || true; fi
+
+      - name: Upload integration artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-artifacts
+          path: |
+            dist/ci-user.zip
+            dist/openvpn/crl.pem
+            dist/state/*
+          if-no-files-found: error
