@@ -1,5 +1,9 @@
 # VPN Certificate Issuance Agent (`vpn-certd`)
 
+[![CI](https://github.com/HarounAhmad/vpn-certd/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/HarounAhmad/vpn-certd/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/HarounAhmad/vpn-certd?include_prereleases&sort=semver)](https://github.com/HarounAhmad/vpn-certd/releases)
+
+
 ## Overview
 `vpn-certd` is a hardened, single-purpose daemon for managing OpenVPN client and server certificates.  
 It holds an **intermediate CA private key** and exposes a minimal local API to a trusted control application (e.g., Java-based admin panel).  
