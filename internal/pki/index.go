@@ -91,3 +91,25 @@ func parseCertNotAfter(certPEM string) (time.Time, error) {
 	}
 	return c.NotAfter, nil
 }
+
+func (c *CA) ExistsCNActive(cn string) (bool, error) {
+	list, err := c.ListIssued(0)
+	if err != nil {
+		return false, err
+	}
+	for _, it := range list {
+		// naive active check: NotAfter in future and not revoked in DB
+		na, err := time.Parse(time.RFC3339, it.NotAfter)
+		if err != nil {
+			continue
+		}
+		if it.CN == cn && time.Now().Before(na) {
+			// if revoked, skip
+			if revoked, _ := c.isSerialRevoked(it.Serial); revoked {
+				continue
+			}
+			return true, nil
+		}
+	}
+	return false, nil
+}

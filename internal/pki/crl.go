@@ -125,3 +125,16 @@ func (c *CA) ReadCRL() (string, error) {
 	}
 	return string(b), nil
 }
+
+func (c *CA) isSerialRevoked(serialDec string) (bool, error) {
+	db, err := c.loadRevoked()
+	if err != nil {
+		return false, err
+	}
+	for _, e := range db.Entries {
+		if e.Serial == serialDec {
+			return true, nil
+		}
+	}
+	return false, nil
+}
