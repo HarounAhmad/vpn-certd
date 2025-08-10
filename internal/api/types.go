@@ -26,14 +26,15 @@ const (
 )
 
 type Request struct {
-	Op         Op      `json:"op"`
-	CN         string  `json:"cn,omitempty"`
-	Profile    Profile `json:"profile,omitempty"`
-	CSRPEM     string  `json:"csr_pem,omitempty"`
-	KeyType    KeyType `json:"key_type,omitempty"`
-	Passphrase string  `json:"passphrase,omitempty"`
-	Serial     string  `json:"serial,omitempty"`
-	Reason     string  `json:"reason,omitempty"`
+	Op         Op         `json:"op"`
+	CN         string     `json:"cn,omitempty"`
+	Profile    Profile    `json:"profile,omitempty"`
+	KeyType    KeyType    `json:"key_type,omitempty"`
+	Passphrase string     `json:"passphrase,omitempty"`
+	CSRPEM     string     `json:"csr,omitempty"`
+	Serial     string     `json:"serial,omitempty"`
+	Reason     string     `json:"reason,omitempty"`
+	Bundle     *BundleReq `json:"bundle,omitempty"`
 }
 
 type Response struct {
@@ -43,7 +44,8 @@ type Response struct {
 	Serial    string       `json:"serial,omitempty"`
 	NotAfter  string       `json:"not_after,omitempty"`
 	Issued    []IssuedMeta `json:"issued,omitempty"`
-	Error     string       `json:"err,omitempty"`
+	ZipB64    string       `json:"zip_b64,omitempty"`
+	Err       string       `json:"err,omitempty"`
 }
 
 type IssuedMeta struct {
@@ -52,4 +54,12 @@ type IssuedMeta struct {
 	Profile  string `json:"profile"`
 	NotAfter string `json:"not_after"`
 	SHA256   string `json:"sha256"`
+}
+
+type BundleReq struct {
+	CN         string `json:"cn"`
+	IncludeKey bool   `json:"include_key"`
+	RemoteHost string `json:"remote_host"`
+	RemotePort int    `json:"remote_port"`
+	Proto      string `json:"proto"`
 }
