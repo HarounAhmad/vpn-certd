@@ -3,25 +3,27 @@ package app
 import (
 	"context"
 	"log/slog"
+	"regexp"
 	"time"
 
 	"github.com/HarounAhmad/vpn-certd/internal/api"
-	"github.com/HarounAhmad/vpn-certd/internal/constants"
 	"github.com/HarounAhmad/vpn-certd/internal/pki"
+	"github.com/HarounAhmad/vpn-certd/internal/policy"
+	"github.com/HarounAhmad/vpn-certd/internal/security"
 	"github.com/HarounAhmad/vpn-certd/internal/server/unixjson"
 	"github.com/HarounAhmad/vpn-certd/internal/validate"
 	"github.com/HarounAhmad/vpn-certd/internal/xerr"
 )
 
 type App struct {
-	Log *slog.Logger
-	CA  *pki.CA
+	Log       *slog.Logger
+	CA        *pki.CA
+	Policy    policy.Policy
+	cnPattern *regexp.Regexp
+	CRLOut    string
 }
 
 func New(log *slog.Logger) *App { return &App{Log: log} }
-
-const defaultClientDays = 180
-const defaultServerDays = 365
 
 func (a *App) Handler() unixjson.Handler { return a }
 
@@ -33,6 +35,9 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 	case api.OpGenKeyAndSign:
 		if err := validate.CN(req.CN); err != nil {
 			return api.Response{}, xerr.Bad("cn")
+		}
+		if err := a.ensureCN(req.CN); err != nil {
+			return api.Response{}, err
 		}
 		if err := validate.Profile(req.Profile); err != nil {
 			return api.Response{}, xerr.Bad("profile")
@@ -46,9 +51,9 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 		if a.CA == nil {
 			return api.Response{}, xerr.InternalErr("ca_not_loaded")
 		}
-		days := defaultClientDays
+		days := a.Policy.ClientDays
 		if req.Profile == api.ProfileServer {
-			days = defaultServerDays
+			days = a.Policy.ServerDays
 		}
 		res, err := pki.GenKeyAndSign(a.CA, req.CN, req.KeyType, req.Profile, days, req.Passphrase)
 		if err != nil {
@@ -66,6 +71,9 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 		if err := validate.CN(req.CN); err != nil {
 			return api.Response{}, xerr.Bad("cn")
 		}
+		if err := a.ensureCN(req.CN); err != nil {
+			return api.Response{}, err
+		}
 		if err := validate.Profile(req.Profile); err != nil {
 			return api.Response{}, xerr.Bad("profile")
 		}
@@ -75,9 +83,9 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 		if a.CA == nil {
 			return api.Response{}, xerr.InternalErr("ca_not_loaded")
 		}
-		days := defaultClientDays
+		days := a.Policy.ClientDays
 		if req.Profile == api.ProfileServer {
-			days = defaultServerDays
+			days = a.Policy.ServerDays
 		}
 		res, err := pki.SignCSR(a.CA, req.CSRPEM, req.Profile, days)
 		if err != nil {
@@ -103,6 +111,12 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 		crl, err := a.CA.RevokeAndWriteCRL(req.Serial, req.Reason)
 		if err != nil {
 			return api.Response{}, xerr.InternalErr(err.Error())
+		}
+		// deploy to OpenVPN path atomically
+		if a.CRLOut != "" {
+			if err := security.AtomicWrite(a.CRLOut, []byte(crl), 0o644); err != nil {
+				a.Log.Warn("crl_deploy_failed", "path", a.CRLOut, "err", err.Error())
+			}
 		}
 		return api.Response{CRLPEM: crl}, nil
 
@@ -131,11 +145,20 @@ func (a *App) Handle(_ context.Context, req api.Request) (api.Response, error) {
 	}
 }
 
-func (a *App) StartServer(ctx context.Context, socket string) error {
-	s := &unixjson.Server{
-		Socket: socket,
-		Log:    a.Log.With("component", constants.AppName),
-		H:      a.Handler(),
+func (a *App) ensureCN(cn string) error {
+	// policy regex
+	if a.cnPattern != nil && !a.cnPattern.MatchString(cn) {
+		return xerr.Bad("cn_policy")
 	}
-	return s.Start(ctx)
+	// uniqueness
+	if !a.Policy.AllowDuplicateCN {
+		exists, err := a.CA.ExistsCNActive(cn)
+		if err != nil {
+			return xerr.InternalErr(err.Error())
+		}
+		if exists {
+			return xerr.ConflictErr("cn_exists_active")
+		}
+	}
+	return nil
 }

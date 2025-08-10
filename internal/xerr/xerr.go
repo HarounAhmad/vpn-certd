@@ -23,3 +23,4 @@ func (e E) Error() string { return fmt.Sprintf("%s: %s", e.Code, e.Msg) }
 func Bad(msg string) error            { return E{Code: BadRequest, Msg: msg} }
 func InternalErr(msg string) error    { return E{Code: Internal, Msg: msg} }
 func NotImplemented(msg string) error { return E{Code: NotImpl, Msg: msg} }
+func ConflictErr(msg string) error    { return E{Code: Conflict, Msg: msg} }
