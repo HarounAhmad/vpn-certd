@@ -45,181 +45,28 @@ Signed Certificates / CRL
 
 ---
 
-## API
-All communication uses JSON over a **UNIX domain socket**.
+## Installation
 
-### 1. Generate key + certificate
-Request:
-```json
-{
-  "op": "GENKEY_AND_SIGN",
-  "cn": "admin-haroun",
-  "profile": "client",
-  "key_type": "rsa4096",
-  "passphrase": "one-time-passphrase"
-}
-```
-Response:
-```json
-{
-  "cert_pem": "-----BEGIN CERTIFICATE-----...",
-  "key_pem_encrypted": "-----BEGIN ENCRYPTED PRIVATE KEY-----...",
-  "serial": "01",
-  "not_after": "2025-11-15T12:00:00Z"
-}
-```
-
-### 2. Sign existing CSR
-Request:
-```json
-{
-  "op": "SIGN",
-  "cn": "admin-haroun",
-  "profile": "client",
-  "csr_pem": "-----BEGIN CERTIFICATE REQUEST-----..."
-}
-```
-
-### 3. Revoke certificate
-Request:
-```json
-{
-  "op": "REVOKE",
-  "serial": "01",
-  "reason": "keyCompromise"
-}
-```
-Response:
-```json
-{
-  "crl_pem": "-----BEGIN X509 CRL-----..."
-}
-```
-
-### 4. Get CRL
-Request:
-```json
-{
-  "op": "GET_CRL"
-}
-```
-
----
-
-## File Structure
-```
-/srv/pki/intermediate/     # CA material
-  int-ca.crt
-  int-ca.key               # 0600 signer:signer
-  index.txt serial crlnumber crl.pem
-
-/run/vpn-certd/            # UNIX socket dir (0700 signer:signer)
-/srv/vpn/static/           # Public artifacts
-  ca.crt
-  ta.key
-```
-
----
-
-## Security Model
-- **CA private key** never leaves the agent.
-- Communication restricted to a **UNIX socket** with filesystem ACLs to the trusted app user.
-- Root filesystem **read-only** inside container/VM.
-- Work directory **tmpfs**; ephemeral key material wiped after use.
-- `capabilities=none`, `no-new-privileges`, `seccomp`, `AppArmor` enforced.
-- **No network access** — all I/O is filesystem and socket only.
-
----
-
-## Hardening Example (systemd)
-```
-[Service]
-User=signer
-Group=signer
-ExecStart=/usr/local/bin/vpn-certd --socket=/run/vpn-certd/sock --pki=/srv/pki/intermediate
-NoNewPrivileges=yes
-PrivateTmp=yes
-ProtectSystem=strict
-ProtectHome=yes
-PrivateDevices=yes
-MemoryDenyWriteExecute=yes
-LockPersonality=yes
-RestrictNamespaces=yes
-RestrictAddressFamilies=AF_UNIX
-CapabilityBoundingSet=
-ReadWritePaths=/srv/pki/intermediate /run/vpn-certd
-```
-
----
-
-## Integration with OpenVPN
-- `ca.crt` from `/srv/vpn/static/ca.crt` used by server and included in client bundles.
-- `ta.key` from `/srv/vpn/static/ta.key` included in bundles.
-- `crl.pem` deployed to OpenVPN and referenced with:
-  ```
-  crl-verify /etc/openvpn/crl.pem
-  ```
-- No OpenVPN restart required on new cert issuance; only CRL updates on revocation.
-
----
-
-## Example Workflow
-1. **Admin** logs in to control panel.
-2. **Control panel** calls `GENKEY_AND_SIGN` on `vpn-certd`.
-3. **Agent** generates encrypted private key + signed certificate.
-4. **Control panel** creates CCD entry + firewall rules.
-5. **Control panel** assembles `.ovpn` bundle with:
-    - `ca.crt`
-    - `ta.key`
-    - `<cn>.crt`
-    - `<cn>.key` (encrypted)
-    - `client-inline.ovpn` (optional)
-6. **Admin** sends ZIP and passphrase to the end user via separate channels.
-
-### Test
-to Test the `vpn-certd` binary, you can run the following commands:
-
+### 1. Clone repository
 ```bash
-make clean
-make build
-./bin/vpn-certd --socket ./dist/run/vpn-certd.sock --pki ./dist/pki --state ./dist/state --log-level info &
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op HEALTH
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn admin-haroun --profile client --key-type rsa4096 --passphrase "CorrectHorseBattery"
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op SIGN --cn admin-haroun --profile client --csr "-----BEGIN CERTIFICATE REQUEST-----\nMIIB...==\n-----END CERTIFICATE REQUEST-----"
+git clone https://github.com/HarounAhmad/vpn-certd.git
+cd vpn-certd
 ```
+
+### 2. Install Go (>=1.20)
+Follow [Go installation guide](https://go.dev/dl/).
+
+### 3. Install dependencies
 ```bash
-make dev-ca
-make build
-
-# Start daemon
-./bin/vpn-certd --socket ./dist/run/vpn-certd.sock --pki ./dist/pki --state ./dist/state --log-level info &
-
-# 1) GENKEY_AND_SIGN — server-side key + cert
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn admin-haroun --profile client --key-type rsa4096 --passphrase "CorrectHorseBattery"
-
-# 2) SIGN — CSR path
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/h.key
-openssl req -new -key /tmp/h.key -subj "/CN=guest-minecraft" -out /tmp/h.csr
-CSR="$(cat /tmp/h.csr)"
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op SIGN --cn guest-minecraft --profile client --csr "$CSR"
-```
-```bash
-make build
-./bin/vpn-certd --socket ./dist/run/vpn-certd.sock --pki ./dist/pki --state ./dist/state --log-level info &
-
-# 1) issue to get a serial
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn test-revoke --profile client --key-type rsa4096 --passphrase "Xx123456789"
-
-# copy "serial" from response (e.g., 1000 or 1001 etc.)
-
-# 2) revoke it
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op REVOKE --serial 1000 --reason keyCompromise
-
-# 3) fetch CRL
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GET_CRL
+sudo apt update && sudo apt install -y make openssl
 ```
 
-add the following to your dist/pki folder 
+---
+
+## Configuration
+
+### 1. Create OpenSSL intermediate CA config
+Create `dist/pki/openssl.cnf`:
 ```cnf
 [ req ]
 distinguished_name = dn
@@ -236,31 +83,97 @@ keyUsage               = critical,keyCertSign,cRLSign
 subjectKeyIdentifier   = hash
 authorityKeyIdentifier = keyid:always,issuer
 ```
+
+### 2. Generate development intermediate CA
 ```bash
 make dev-ca
 make print-ca
+```
 
+---
+
+## Building
+
+```bash
+make clean # Clean previous builds, will also delete the openssl.cnf
 make build
-./bin/vpn-certd --socket ./dist/run/vpn-certd.sock --pki ./dist/pki --state ./dist/state --log-level info &
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn admin-haroun --profile client --key-type rsa4096 --passphrase "CorrectHorseBattery" > /tmp/issue.json
+```
+
+This produces binaries in `bin/`:
+- `vpn-certd` — daemon
+- `vpn-certctl` — CLI client
+- `vpn-bundle` — bundle generator
+
+---
+
+## Running
+
+### Start daemon
+```bash
+./bin/vpn-certd   --socket ./dist/run/vpn-certd.sock   --pki ./dist/pki   --state ./dist/state   --policy ./dist/etc/policy.yaml   --crl-out ./dist/openvpn/crl.pem   --log-level info &
+```
+
+### Health check
+```bash
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op HEALTH
+```
+
+---
+
+## Certificate Operations
+
+### 1. Generate key + certificate
+```bash
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock   --op GENKEY_AND_SIGN   --cn admin-haroun   --profile client   --key-type rsa4096   --passphrase "CorrectHorseBattery"
+```
+
+### 2. Sign existing CSR
+```bash
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/h.key
+openssl req -new -key /tmp/h.key -subj "/CN=guest-minecraft" -out /tmp/h.csr
+CSR="$(cat /tmp/h.csr)"
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock   --op SIGN   --cn guest-minecraft   --profile client   --csr "$CSR"
+```
+
+### 3. Revoke certificate
+```bash
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock   --op REVOKE   --serial 1000   --reason keyCompromise
+```
+
+### 4. Get CRL
+```bash
+./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GET_CRL
+```
+
+---
+
+## Building Client Bundles
+
+### 1. Prepare artifacts
+```bash
 jq -r '.cert_pem' /tmp/issue.json > dist/admin-haroun.crt
 jq -r '.key_pem_encrypted' /tmp/issue.json > dist/admin-haroun.key
 cp dist/pki/int-ca.crt dist/ca.crt
 echo "dummy-ta-key" > dist/ta.key
-./bin/vpn-bundle \
--cn admin-haroun \
--ca dist/ca.crt \
--ta dist/ta.key \
--cert dist/admin-haroun.crt \
--key dist/admin-haroun.key \
--remote 127.0.0.1 \
--port 1194 \
--proto udp \
--out dist/admin-haroun.zip
+```
 
-ls -lh dist/admin-haroun.zip
-```
+### 2. Build bundle
 ```bash
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op GENKEY_AND_SIGN --cn admin-haroun --profile client --key-type rsa4096 --passphrase "CorrectHorseBattery"
-./bin/vpn-certctl --socket ./dist/run/vpn-certd.sock --op LIST_ISSUED
+./bin/vpn-bundle   -cn admin-haroun   -ca dist/ca.crt   -ta dist/ta.key   -cert dist/admin-haroun.crt   -key dist/admin-haroun.key   -remote 127.0.0.1   -port 1194   -proto udp   -out dist/admin-haroun.zip
 ```
+
+---
+
+## Integration with OpenVPN
+- Deploy `ca.crt`, `ta.key`, and `crl.pem` to OpenVPN server.
+- Configure:
+```bash
+crl-verify /etc/openvpn/crl.pem
+```
+
+---
+
+## Security Notes
+- Limit socket access via filesystem ACLs.
+- Run under restricted user, apply `systemd` hardening options.
+- Root CA always offline.
