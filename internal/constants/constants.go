@@ -28,3 +28,10 @@ const (
 	FilePerm0600   = 0o600
 	SocketPerm0600 = 0o600
 )
+
+const (
+	EnvPolicyPath = "VPNCERTD_POLICY"
+	EnvCRLOutPath = "VPNCERTD_CRL_OUT"
+	DefaultPolicy = "/etc/vpn-certd/policy.yaml"
+	DefaultCRLOut = "/etc/openvpn/crl.pem"
+)
