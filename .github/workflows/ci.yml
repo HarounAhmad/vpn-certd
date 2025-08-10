@@ -20,7 +20,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-          cache: true
+          cache: false  # don't depend on go.sum for cache keys
 
       - name: go fmt check
         run: |
@@ -29,9 +29,17 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      - name: Dependencies
+      - name: Ensure modules and generate go.sum
         run: |
-          make deps || { go mod tidy && go mod download; }
+          set -euxo pipefail
+          go env
+          # make sure go.mod exists; then resolve deps and write go.sum
+          go mod tidy
+          go mod download
+          test -s go.sum || { echo "go.sum still missing/empty"; exit 2; }
+          # show what got generated for debugging
+          wc -l go.sum
+          head -n 5 go.sum || true
 
       - name: Build
         run: make build
@@ -62,16 +70,19 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-          cache: true
+          cache: false
+
+      - name: Ensure modules and generate go.sum
+        run: |
+          set -euxo pipefail
+          go mod tidy
+          go mod download
+          test -s go.sum
 
       - name: Install test deps
         run: |
           sudo apt-get update
           sudo apt-get install -y openssl socat jq unzip
-
-      - name: Dependencies
-        run: |
-          make deps || { go mod tidy && go mod download; }
 
       - name: Build
         run: make build
