@@ -55,6 +55,7 @@ jobs:
       - name: Ensure modules and generate go.sum
         run: |
           set -euxo pipefail
+          go get gopkg.in/yaml.v3@latest
           go mod tidy
           go mod download
           test -s go.sum

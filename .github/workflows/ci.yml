@@ -34,6 +34,7 @@ jobs:
           set -euxo pipefail
           go env
           # make sure go.mod exists; then resolve deps and write go.sum
+          go get gopkg.in/yaml.v3@latest
           go mod tidy
           go mod download
           test -s go.sum || { echo "go.sum still missing/empty"; exit 2; }
