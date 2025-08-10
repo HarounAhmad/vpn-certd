@@ -46,7 +46,7 @@ type Response struct {
 	NotAfter  string       `json:"not_after,omitempty"`
 	Issued    []IssuedMeta `json:"issued,omitempty"`
 	ZipB64    string       `json:"zip_b64,omitempty"`
-	Err       string       `json:"err,omitempty"`
+	Error     string       `json:"err,omitempty"`
 }
 
 type IssuedMeta struct {
